@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DSH 会话批注 · 交互原型</title>
+<style>
+  :root{
+    --brand:#4d6bfe;
+    --brand-weak:rgba(77,107,254,.10);
+    --bg:#f6f6f7;
+    --surface:#ffffff;
+    --surface-2:#f2f3f5;
+    --surface-3:#eceef1;
+    --line:#e7e8ea;
+    --line-strong:#d8dadd;
+    --text:#1b1c1f;
+    --text-2:#5f6368;
+    --text-3:#8e9298;
+    --sel:rgba(77,107,254,.18);
+    --sel-strong:rgba(77,107,254,.28);
+    --ok:#0f9d58;
+    --warn:#b26a00;
+    --shadow-sm:0 1px 2px rgba(20,20,25,.06), 0 1px 1px rgba(20,20,25,.04);
+    --shadow-md:0 10px 30px rgba(20,20,25,.12), 0 2px 8px rgba(20,20,25,.06);
+    --shadow-lg:0 24px 60px rgba(20,20,25,.18), 0 4px 14px rgba(20,20,25,.08);
+    --r-sm:8px; --r-md:12px; --r-lg:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Inter","Segoe UI","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    font-size:14px; -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  .app{display:grid; grid-template-columns:248px minmax(0,1fr) 420px; height:100vh}
+  .app.no-panel{grid-template-columns:248px minmax(0,1fr) 0}
+
+  /* ── sidebar ───────────────────────────────────────────── */
+  .sidebar{
+    background:#fbfbfc; border-right:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0; padding:12px 10px;
+  }
+  .brand{display:flex; align-items:center; gap:8px; padding:6px 8px 14px}
+  .brand-mark{
+    width:22px;height:22px;border-radius:6px;background:var(--brand);
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;
+  }
+  .brand-name{font-weight:650; font-size:13.5px; letter-spacing:.1px}
+  .brand-sub{font-size:11px; color:var(--text-3); margin-left:auto}
+  .new-chat{
+    display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;
+    border:1px solid var(--line);background:#fff;font-size:13px;color:var(--text-2);
+    box-shadow:var(--shadow-sm); margin-bottom:14px;
+  }
+  .new-chat:hover{border-color:var(--line-strong);color:var(--text)}
+  .side-label{font-size:11px;color:var(--text-3);padding:0 8px 6px;letter-spacing:.3px}
+  .session{
+    display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:9px;cursor:pointer;
+    color:var(--text-2);
+  }
+  .session:hover{background:#f1f2f4}
+  .session.active{background:#fff;box-shadow:var(--shadow-sm);border:1px solid var(--line);color:var(--text)}
+  .session-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .session-meta{font-size:11px;color:var(--text-3)}
+  .side-foot{margin-top:auto;padding:10px 8px 2px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3)}
+  .avatar{width:22px;height:22px;border-radius:50%;background:#dde3ff;color:#3b55d9;display:grid;place-items:center;font-size:11px;font-weight:600}
+
+  /* ── main ──────────────────────────────────────────────── */
+  .main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+  .topbar{
+    height:54px;flex:none;display:flex;align-items:center;gap:10px;padding:0 20px;
+    border-bottom:1px solid var(--line);background:rgba(246,246,247,.86);backdrop-filter:blur(8px);
+    position:relative;z-index:5;
+  }
+  .doc-title{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .chip{
+    display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;
+    background:var(--surface-2);color:var(--text-2);font-size:11px;white-space:nowrap;flex:none;
+  }
+  .chip.dot::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ok)}
+  .top-tabs{display:flex;gap:2px;margin-left:8px;background:var(--surface-2);padding:2px;border-radius:8px;flex:none}
+  .top-tab{padding:4px 10px;border-radius:6px;font-size:12px;color:var(--text-2)}
+  .top-tab.active{background:#fff;color:var(--text);box-shadow:var(--shadow-sm)}
+  .top-right{margin-left:8px;display:flex;align-items:center;gap:6px}
+
+  .transcript{flex:1;overflow-y:auto;padding:24px 32px 190px;scroll-behavior:smooth}
+  .thread{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+  .msg-user{align-self:flex-end;max-width:78%}
+  .msg-user .bubble{
+    background:var(--surface-2);border:1px solid #e9eaec;border-radius:14px 14px 4px 14px;
+    padding:11px 14px;line-height:1.65;color:#2a2b2f;
+  }
+  .msg-user .stamp{font-size:11px;color:var(--text-3);text-align:right;margin-top:6px}
+
+  .msg-assistant{position:relative;padding-left:2px}
+  .msg-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--text-2);font-size:12px}
+  .model-dot{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#4d6bfe,#7c93ff);display:grid;place-items:center;color:#fff;font-size:9px;font-weight:700}
+  .answer{line-height:1.78;font-size:14.5px;color:#23242a}
+  .answer h3{font-size:14.5px;margin:22px 0 8px;font-weight:650;letter-spacing:.1px}
+  .answer h3:first-child{margin-top:0}
+  .answer p{margin:8px 0}
+  .answer ul{margin:8px 0;padding-left:20px}
+  .answer li{margin:4px 0}
+  .answer code{font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace;font-size:12.5px;background:#eeeef1;border:1px solid #e5e6e9;border-radius:5px;padding:1px 5px}
+  .code{
+    margin:12px 0;background:#fbfbfc;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    box-shadow:var(--shadow-sm);
+  }
+  body[data-step="1"] .code{margin-top:50px}
+  .code-head{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);color:var(--text-3);font-size:11px;background:#f7f7f9}
+  .code pre{margin:0;padding:12px 14px;overflow-x:auto;font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace;font-size:12.5px;line-height:1.7;color:#2c2e34}
+  .code .tok-cmd{color:#3346c9}
+  .code .tok-str{color:#a35a00}
+  .code .tok-num{color:#0f7b6c}
+
+  /* annotation anchors */
+  .anchor{position:relative}
+  mark.sel{
+    background:var(--sel);border-radius:3px;padding:1px 0;color:inherit;
+    box-shadow:0 0 0 2px var(--sel);
+  }
+  mark.sel.on{background:var(--sel-strong);box-shadow:0 0 0 2px var(--sel-strong)}
+  .num{
+    display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;
+    background:var(--brand);color:#fff;font-size:10px;font-weight:650;line-height:1;
+    vertical-align:super;margin-left:3px;transform:translateY(-2px);
+    box-shadow:0 0 0 2px var(--surface);
+  }
+  .msg-badge{
+    position:absolute;top:-6px;right:0;display:inline-flex;align-items:center;gap:5px;
+    height:23px;padding:0 9px;border-radius:999px;background:#fff;border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);font-size:11px;color:var(--text-2);z-index:3;
+  }
+  .msg-badge b{color:var(--brand);font-weight:650}
+
+  /* floating pill */
+  .pill{
+    position:absolute;z-index:20;display:inline-flex;align-items:center;gap:7px;
+    height:34px;padding:0 12px 0 10px;border-radius:999px;background:#fff;
+    border:1px solid var(--line);box-shadow:var(--shadow-md);
+    font-size:12.5px;color:var(--text);white-space:nowrap;
+    top:calc(100% + 6px);left:0;
+  }
+  .pill:hover{border-color:#c9ccd4}
+  .pill .plus{width:18px;height:18px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:13px;line-height:1}
+  .pill kbd{font-family:inherit;font-size:10.5px;color:var(--text-3);border:1px solid var(--line);border-radius:4px;padding:1px 4px;background:#fafafb}
+
+  /* popover */
+  .popover{
+    position:absolute;z-index:30;width:372px;background:#fff;border:1px solid var(--line);
+    border-radius:14px;box-shadow:var(--shadow-lg);padding:12px;
+    top:calc(100% + 6px);left:0;
+  }
+  .pop-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .pop-kicker{font-size:11px;color:var(--text-3);letter-spacing:.2px}
+  .pop-count{margin-left:auto;font-size:11px;color:var(--text-3)}
+  .pop-quote{
+    position:relative;background:#f7f8fa;border:1px solid #ecedf0;border-left:2px solid #b9c6ff;
+    border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.6;color:#4a4d55;
+    max-height:76px;overflow:hidden;
+  }
+  .pop-quote .loc{display:block;font-size:10.5px;color:var(--text-3);margin-bottom:3px}
+  .pop-input{
+    width:100%;border:0;outline:none;resize:none;min-height:54px;
+    font:inherit;font-size:13.5px;line-height:1.65;color:var(--text);background:transparent;
+    padding:0;display:block;
+  }
+  .pop-input::placeholder{color:#a9adb5}
+  .pop-field{
+    margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:7px 10px 8px;
+    background:#fcfcfd;transition:border-color .15s,background .15s;
+  }
+  .pop-field:focus-within{border-color:#c3cbf5;background:#fff}
+  .field-label{display:block;font-size:10.5px;color:var(--text-3);margin-bottom:1px}
+  .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .tag{
+    height:24px;padding:0 9px;border-radius:999px;border:1px solid var(--line);background:#fff;
+    font-size:11.5px;color:var(--text-2);display:inline-flex;align-items:center;gap:5px;
+  }
+  .tag:hover{border-color:#c9ccd4}
+  .tag.on{background:var(--brand-weak);border-color:rgba(77,107,254,.35);color:#3a50c9}
+  .pop-foot{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f0f1f3}
+  .hint{font-size:11px;color:var(--text-3)}
+  .btn{
+    height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:#fff;
+    font-size:12.5px;color:var(--text);display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:#f7f7f9}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--text-2)}
+  .btn.ghost:hover{background:var(--surface-2)}
+  .btn.sm{height:26px;padding:0 9px;font-size:12px;border-radius:7px}
+  .spacer{margin-left:auto}
+
+  /* tray */
+  .dock{position:absolute;left:0;right:0;bottom:0;padding:10px 0 14px;background:linear-gradient(to top,var(--bg) 58%,rgba(246,246,247,0))}
+  .dock-inner{max-width:760px;margin:0 auto;padding:0 32px}
+  .tray{
+    display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;padding:8px 9px 8px 11px;box-shadow:var(--shadow-md);margin-bottom:9px;
+  }
+  .tray-icon{width:24px;height:24px;border-radius:7px;background:var(--brand-weak);display:grid;place-items:center;color:var(--brand);flex:none}
+  .tray-main{min-width:0;flex:1}
+  .tray-title{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .tray-title .count{color:var(--brand)}
+  .tray-sub{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .tray-actions{display:flex;align-items:center;gap:6px;flex:none}
+
+  .composer{
+    background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-md);
+    padding:12px 12px 9px;transition:border-color .15s;
+  }
+  .composer:focus-within{border-color:#c7cbe0}
+  .composer .draft{font-size:14px;line-height:1.65;color:#a9adb5;padding:2px 4px 10px;min-height:26px}
+  .composer .draft.has-text{color:var(--text)}
+  .composer-bar{display:flex;align-items:center;gap:6px}
+  .icon-btn{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--text-2)}
+  .icon-btn:hover{background:var(--surface-2);color:var(--text)}
+  .model-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border-radius:8px;font-size:12px;color:var(--text-2)}
+  .model-chip:hover{background:var(--surface-2)}
+  .send-btn{width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;box-shadow:0 2px 6px rgba(77,107,254,.35)}
+  .send-btn.dim{background:#d6d8de;box-shadow:none}
+
+  /* right panel */
+  .panel{
+    background:#fbfbfc;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;
+    transform:translateX(0);transition:transform .22s ease;
+  }
+  .app:not(.no-panel) .panel{transform:none}
+  .panel-head{height:54px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)}
+  .panel-title{font-size:13px;font-weight:650}
+  .panel-body{flex:1;min-height:0;overflow:hidden;padding:14px 16px 8px;display:flex;flex-direction:column}
+  .sec-label{font-size:11px;color:var(--text-3);margin:0 0 7px;letter-spacing:.2px}
+  .summary{
+    background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;box-shadow:var(--shadow-sm);
+  }
+  .summary textarea{width:100%;border:0;outline:none;resize:none;font:inherit;font-size:12.5px;line-height:1.6;color:var(--text);background:transparent;min-height:42px}
+  .item{
+    position:relative;background:#fff;border:1px solid var(--line);border-radius:11px;padding:9px 10px 8px 32px;
+    margin-bottom:7px;box-shadow:var(--shadow-sm);
+  }
+  .item-index{
+    position:absolute;left:10px;top:10px;width:16px;height:16px;border-radius:50%;background:var(--brand);
+    color:#fff;font-size:10px;font-weight:650;display:grid;place-items:center;
+  }
+  .item-quote{font-size:11.5px;line-height:1.55;color:var(--text-3);border-left:2px solid #e2e5ec;padding-left:7px;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .item-comment{font-size:12.5px;line-height:1.6;color:#2b2d33;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .item-foot{display:flex;align-items:center;gap:6px;margin-top:5px;color:var(--text-3);font-size:10.5px}
+  .item-foot .spacer{margin-left:auto}
+  .item-foot button{color:var(--text-3);padding:2px 4px;border-radius:4px}
+  .item-foot button:hover{background:var(--surface-2);color:var(--text)}
+  .seg{display:flex;background:var(--surface-2);border-radius:8px;padding:2px;gap:2px;margin:10px 0 12px}
+  .seg button{flex:1;height:26px;border-radius:6px;font-size:11.5px;color:var(--text-2)}
+  .seg button.on{background:#fff;color:var(--text);box-shadow:var(--shadow-sm);font-weight:600}
+  .preview-hint{
+    margin-top:auto;padding-top:12px;border-top:1px dashed var(--line);
+    font-size:11px;line-height:1.6;color:var(--text-3);
+  }
+  .panel-foot{flex:none;padding:12px 16px 16px;border-top:1px solid var(--line);display:flex;gap:8px;background:#fbfbfc}
+
+  /* sent bubble */
+  .sent{display:flex;justify-content:flex-end;margin-top:2px}
+  .sent .bubble{
+    max-width:82%;background:var(--surface-2);border:1px solid #e9eaec;border-radius:14px 14px 4px 14px;padding:10px 12px;
+  }
+  .sent-line{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2)}
+  .sent-line b{color:var(--brand);font-weight:650}
+  .sent-sum{font-size:13px;line-height:1.65;color:#2a2b2f;margin-top:6px}
+  .fold{
+    display:flex;align-items:center;gap:6px;margin-top:8px;padding:6px 9px;border-radius:8px;
+    background:#fff;border:1px solid var(--line);font-size:11.5px;color:var(--text-2);width:fit-content;
+  }
+
+  .delivered mark.sel{background:rgba(77,107,254,.08);box-shadow:0 0 0 1px rgba(77,107,254,.12)}
+  .delivered .num{background:#c9cfdd}
+  .delivered .msg-badge{opacity:.6}
+
+  /* stepper (sits inside the top bar as demo chrome) */
+  .stepper{
+    display:flex;align-items:center;gap:2px;background:#fff;
+    border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--shadow-sm);
+    margin-left:auto;flex:none;
+  }
+  .stepper .lbl{font-size:10.5px;color:var(--text-3);padding:0 6px}
+  .step{
+    height:26px;padding:0 10px;border-radius:999px;font-size:11.5px;color:var(--text-2);
+    display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  }
+  .step i{width:15px;height:15px;border-radius:50%;background:var(--surface-3);display:grid;place-items:center;font-style:normal;font-size:9.5px;color:var(--text-2)}
+  .step:hover{background:var(--surface-2)}
+  .step.on{background:#eef1ff;color:#3346c9;font-weight:600}
+  .step.on i{background:var(--brand);color:#fff}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);
+    background:#1f2024;color:#fff;font-size:12.5px;padding:9px 14px;border-radius:9px;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:90;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* visibility by step */
+  [data-show]{display:none !important}
+  body[data-step="1"] [data-show~="1"],
+  body[data-step="2"] [data-show~="2"],
+  body[data-step="3"] [data-show~="3"],
+  body[data-step="4"] [data-show~="4"]{display:var(--d,block) !important}
+  .pill{--d:inline-flex}
+  .tray{--d:flex}
+  .msg-badge{--d:inline-flex}
+  .num{--d:inline-grid}
+  .sent{--d:flex}
+
+  @media (max-width:1180px){
+    .app{grid-template-columns:0 minmax(0,1fr) 380px}
+    .sidebar{display:none}
+  }
+  @media (max-width:1320px){
+    .top-tabs{display:none}
+    .stepper .lbl{display:none}
+  }
+  body.panel-open .top-tabs{display:none}
+  body.panel-open .chip.branch{display:none}
+  body.panel-open .doc-title{max-width:220px}
+</style>
+</head>
+<body data-step="1">
+<div class="app" id="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">D</div>
+      <div class="brand-name">DeepSeek Harness</div>
+      <div class="brand-sub">桌面版</div>
+    </div>
+    <div class="new-chat">＋ 新建会话 <span class="spacer"></span><kbd style="font-size:10px;color:#8e9298">⌘N</kbd></div>
+    <div class="side-label">今天</div>
+    <div class="session active">
+      <div class="session-title">failure-analysis 升级方案</div>
+      <div class="session-meta">3 条批注待发送</div>
+    </div>
+    <div class="session">
+      <div class="session-title">报告页多语言截图对齐</div>
+      <div class="session-meta">2 小时前</div>
+    </div>
+    <div class="session">
+      <div class="session-title">质量矩阵统计口径</div>
+      <div class="session-meta">昨天</div>
+    </div>
+    <div class="session">
+      <div class="session-title">Windows-MCP 稳定性排查</div>
+      <div class="session-meta">周二</div>
+    </div>
+    <div class="side-foot">
+      <div class="avatar">R</div>
+      <div>RPPZH</div>
+      <span class="spacer"></span>
+      <div style="font-size:11px">0.2.1-rc.2</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="doc-title">failure-analysis 升级方案</div>
+      <span class="chip dot">运行中</span>
+      <span class="chip branch">主分支</span>
+      <div class="top-tabs">
+        <div class="top-tab active">对话</div>
+        <div class="top-tab">轨迹</div>
+      </div>
+      <div class="stepper">
+        <span class="lbl">演示</span>
+        <button class="step on" data-step-btn="1"><i>1</i>划词</button>
+        <button class="step" data-step-btn="2"><i>2</i>写批注</button>
+        <button class="step" data-step-btn="3"><i>3</i>批量待发</button>
+        <button class="step" data-step-btn="4"><i>4</i>已发送</button>
+      </div>
+      <div class="top-right">
+        <button class="icon-btn" title="搜索">⌕</button>
+        <button class="icon-btn" title="更多">⋯</button>
+      </div>
+    </div>
+
+    <div class="transcript" id="transcript">
+      <div class="thread" id="thread">
+
+        <div class="msg-user">
+          <div class="bubble">升级方案里补一下报告目录和备份的处理，另外说明本次升级涉及哪些迁移。</div>
+          <div class="stamp">今天 11:42</div>
+        </div>
+
+        <div class="msg-assistant" id="assistantMsg">
+          <div class="msg-head">
+            <div class="model-dot">DS</div>
+            <span>deepseek-v4.1-flash</span>
+            <span style="color:#c3c6cc">·</span>
+            <span>4 分 12 秒</span>
+          </div>
+
+          <div class="msg-badge" data-show="3 4" id="msgBadge"><span>◉</span><b>3</b> 消息级批注</div>
+
+          <div class="answer">
+            <h3>4. 报告目录与权限</h3>
+
+            <div class="anchor" id="anchor1">
+              <p><mark class="sel" id="sel1">同时准备报告目录，并将它单独纳入备份：</mark><span class="num" data-show="3 4">1</span></p>
+              <div class="pill" data-show="1" id="pill" role="button">
+                <span class="plus">＋</span> 添加批注 <kbd>⌥A</kbd>
+              </div>
+
+              <div class="popover" data-show="2" id="popover">
+                <div class="pop-head">
+                  <span class="pop-kicker">添加批注</span>
+                  <span class="pop-count">第 1 条 · 助手消息 #4f2a1c</span>
+                </div>
+                <div class="pop-quote">
+                  <span class="loc">第 4 轮 · 段落 2 · 字符 0–19</span>
+                  同时准备报告目录，并将它单独纳入备份：
+                </div>
+                <div class="pop-field">
+                  <span class="field-label">评论</span>
+                  <textarea class="pop-input" id="popInput" spellcheck="false">这里要说明目录权限为什么是 0750，否则运维不敢执行。</textarea>
+                </div>
+                <div class="tags">
+                  <button class="tag on">修改</button>
+                  <button class="tag">疑问</button>
+                  <button class="tag">补充</button>
+                  <button class="tag">删除</button>
+                </div>
+                <div class="pop-foot">
+                  <span class="hint">Ctrl+Enter 保存 · Esc 取消</span>
+                  <span class="spacer"></span>
+                  <button class="btn ghost sm">取消</button>
+                  <button class="btn primary sm">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="code">
+              <div class="code-head"><span>Bash</span><span style="margin-left:auto">复制</span></div>
+              <pre>install -d -o failure-analysis -g failure-analysis -m 0750 \
+  /var/lib/failure-analysis/reports</pre>
+            </div>
+
+            <p>模型无需新增环境变量。本次升级包含 <code>0031 → 0032 → 0033</code> 迁移，迁移脚本会在首次启动时按序执行，任一步失败即整体回滚事务。</p>
+
+            <h3>5. 备份范围</h3>
+            <div class="anchor" id="anchor2">
+              <ul>
+                <li><code>/var/lib/failure-analysis/reports</code>：按日增量<mark class="sel" id="sel2">，保留 30 天</mark><span class="num" data-show="3 4">2</span></li>
+                <li><code>/etc/failure-analysis/</code>：全量，随版本发布归档</li>
+                <li>迁移前的 <code>schema_version</code> 快照：保留 7 天</li>
+              </ul>
+            </div>
+
+            <h3>6. 回滚</h3>
+            <p>升级失败时将 <code>schema_version</code> 置回 <code>0031</code>，重新拉起上一版镜像即可。回滚不需要额外清理报告目录。</p>
+          </div>
+        </div>
+
+        <!-- sent batch -->
+        <div class="sent" data-show="4" id="sentMsg">
+          <div class="bubble">
+            <div class="sent-line"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.6 3.4 5.9 8.1a1.5 1.5 0 0 0 2.1 2.1l4.9-4.9a2.7 2.7 0 0 0-3.8-3.8L4 6.5a3.9 3.9 0 0 0 5.5 5.5l3.9-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 已发送 <b>3 条批注</b> · 今天 12:06</div>
+            <div class="sent-sum">整体方向可以，权限与回滚需要补细节。</div>
+            <div class="fold"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.6 3.4 5.9 8.1a1.5 1.5 0 0 0 2.1 2.1l4.9-4.9a2.7 2.7 0 0 0-3.8-3.8L4 6.5a3.9 3.9 0 0 0 5.5 5.5l3.9-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> 3 条批注 <span style="color:#b9bcc4">▾</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="dock">
+      <div class="dock-inner">
+        <div class="tray" data-show="2 3">
+          <div class="tray-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.6 3.4 5.9 8.1a1.5 1.5 0 0 0 2.1 2.1l4.9-4.9a2.7 2.7 0 0 0-3.8-3.8L4 6.5a3.9 3.9 0 0 0 5.5 5.5l3.9-3.9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="tray-main">
+            <div class="tray-title"><span class="count" id="trayCount">1</span> 条批注待发送</div>
+            <div class="tray-sub" id="traySub">1 · 说明 0750 权限依据</div>
+          </div>
+          <div class="tray-actions">
+            <button class="btn sm ghost" id="previewBtn" data-show="3">预览</button>
+            <button class="btn sm primary" id="sendBtn" data-show="3">发送</button>
+            <button class="btn sm" id="openPanelBtn" data-show="2">查看</button>
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="draft" id="draft">给 DeepSeek Harness 发消息…</div>
+          <div class="composer-bar">
+            <button class="icon-btn" title="附件">＋</button>
+            <button class="icon-btn" title="语音">◉</button>
+            <div class="model-chip">deepseek-v4.1-flash <span style="color:#b9bcc4">⌄</span></div>
+            <span class="spacer"></span>
+            <button class="icon-btn" title="停止">■</button>
+            <button class="send-btn dim" title="发送">↑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel">
+    <div class="panel-head">
+      <div class="panel-title">发送预览</div>
+      <span class="chip">3 条</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="closePanel">×</button>
+    </div>
+    <div class="panel-body">
+      <div class="sec-label">总评（会放在批注列表最前面）</div>
+      <div class="summary">
+        <textarea id="overall" spellcheck="false">整体方向可以，权限与回滚需要补细节。</textarea>
+      </div>
+
+      <div class="sec-label" style="margin-top:14px">逐条批注</div>
+
+      <div class="item">
+        <div class="item-index">1</div>
+        <div class="item-quote">同时准备报告目录，并将它单独纳入备份：</div>
+        <div class="item-comment">这里要说明目录权限为什么是 0750，否则运维不敢执行。</div>
+        <div class="item-foot"><span>第 4 轮 · 段落 2</span><span class="spacer"></span><button>跳转</button><button>删除</button></div>
+      </div>
+
+      <div class="item">
+        <div class="item-index">2</div>
+        <div class="item-quote">，保留 30 天</div>
+        <div class="item-comment">保留期和磁盘容量对不上：按现在的日志量 30 天要 1.8T。</div>
+        <div class="item-foot"><span>第 4 轮 · 列表项 1</span><span class="spacer"></span><button>跳转</button><button>删除</button></div>
+      </div>
+
+      <div class="item">
+        <div class="item-index">3</div>
+        <div class="item-quote" style="font-style:italic">整条消息</div>
+        <div class="item-comment">回滚只说“拉起上一版镜像”，缺少数据校验步骤。</div>
+        <div class="item-foot"><span>助手消息 #4f2a1c</span><span class="spacer"></span><button>跳转</button><button>删除</button></div>
+      </div>
+
+      <div class="seg">
+        <button class="on">合并为一条</button>
+        <button>逐条发送</button>
+      </div>
+
+      <div class="preview-hint">发送时会自动附上原文定位与格式；这里只预览你的批注。</div>
+    </div>
+    <div class="panel-foot">
+      <button class="btn ghost" id="cancelSend">取消</button>
+      <span class="spacer"></span>
+      <button class="btn primary" id="confirmSend">发送 3 条批注</button>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast">已保存第 1 条批注</div>
+
+<script>
+  const app = document.getElementById('app');
+  const body = document.body;
+  const toast = document.getElementById('toast');
+  let toastTimer = 0;
+
+  function showToast(text){
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  function setStep(step){
+    body.dataset.step = String(step);
+    body.classList.toggle('panel-open', step === 3);
+    app.classList.toggle('no-panel', step !== 3);
+    document.querySelectorAll('.step').forEach(btn => {
+      btn.classList.toggle('on', btn.dataset.stepBtn === String(step));
+    });
+    // step-specific details
+    const count = step === 1 ? 0 : step === 2 ? 1 : 3;
+    document.getElementById('trayCount').textContent = String(Math.max(count, 1));
+    const subs = {
+      2: '1 · 说明 0750 权限依据',
+      3: '1 权限依据 · 2 保留 30 天 · 3 回滚校验'
+    };
+    document.getElementById('traySub').textContent = subs[step] || '1 · 说明 0750 权限依据';
+    document.getElementById('assistantMsg').classList.toggle('delivered', step === 4);
+    if (step === 4){
+      document.getElementById('anchor1').scrollIntoView({block:'center'});
+    }
+    if (step === 1){
+      document.getElementById('anchor1').scrollIntoView({block:'center'});
+    }
+  }
+
+  document.querySelectorAll('.step').forEach(btn => {
+    btn.addEventListener('click', () => setStep(Number(btn.dataset.stepBtn)));
+  });
+
+  document.getElementById('pill').addEventListener('click', () => {
+    setStep(2);
+    const input = document.getElementById('popInput');
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
+
+  document.getElementById('openPanelBtn').addEventListener('click', () => setStep(3));
+  document.getElementById('previewBtn').addEventListener('click', () => setStep(3));
+  document.getElementById('closePanel').addEventListener('click', () => setStep(2));
+  document.getElementById('cancelSend').addEventListener('click', () => setStep(2));
+  document.getElementById('sendBtn').addEventListener('click', () => {
+    setStep(4);
+    showToast('已作为一条消息发送 · 3 条批注');
+  });
+  document.getElementById('confirmSend').addEventListener('click', () => {
+    setStep(4);
+    showToast('已作为一条消息发送 · 3 条批注');
+    document.getElementById('assistantMsg').classList.add('delivered');
+  });
+
+  document.querySelectorAll('.tag').forEach(tag => {
+    tag.addEventListener('click', () => tag.classList.toggle('on'));
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setStep(1);
+    if (event.key === 'ArrowRight') setStep(Math.min(4, Number(body.dataset.step) + 1));
+    if (event.key === 'ArrowLeft') setStep(Math.max(1, Number(body.dataset.step) - 1));
+  });
+
+  // clicking the annotated line in step 1 acts like a fresh selection
+  document.getElementById('anchor1').addEventListener('click', (event) => {
+    if (body.dataset.step !== '1') return;
+    if (event.target.closest('.pill')) return;
+    document.getElementById('sel1').classList.add('on');
+  });
+
+  setStep(Number(new URLSearchParams(location.search).get('step') || 1));
+</script>
+</body>
+</html>

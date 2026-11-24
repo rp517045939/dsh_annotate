@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>annotate · DOM harness</title>
+<style>
+  body { margin: 0; padding: 28px; font: 14px/1.7 "Segoe UI", "Microsoft YaHei", sans-serif; color: #1b1c1f; }
+  #stage { max-width: 720px; }
+  .answer p { margin: 8px 0; }
+  .answer pre { background: #f5f6f8; padding: 10px 12px; border-radius: 8px; overflow: auto; }
+  #ta, #ce { margin-top: 20px; display: block; width: 320px; min-height: 40px; border: 1px solid #ccc; border-radius: 6px; padding: 6px; }
+  #out { margin-top: 24px; font: 12px/1.6 Consolas, monospace; white-space: pre-wrap; }
+  .pass { color: #0f7b3f; }
+  .fail { color: #b3261e; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="row" data-chat-flow-kind="assistant-step" data-chat-turn="4">
+    <div class="answer">
+      <p id="p1">同时准备报告目录，并将它单独纳入备份：</p>
+      <pre id="pre1"><code class="language-bash">install -d -o failure-analysis -g failure-analysis -m 0750 \
+  /var/lib/failure-analysis/reports</code></pre>
+      <p id="p2">重复的句子。重复的句子。</p>
+    </div>
+  </div>
+  <textarea id="ta">composer draft</textarea>
+  <div id="ce" contenteditable="true">editable block</div>
+</div>
+<div id="out">running…</div>
+
+<script>
+  window.__captured = null
+  window.__ModuleLoader__ = { load: (definition) => { window.__captured = definition } }
+</script>
+<script src="/client.js"></script>
+<script>
+(async () => {
+  const out = document.getElementById('out')
+  const results = []
+
+  function assert(condition, message) {
+    if (!condition) throw new Error(message)
+  }
+
+  function check(name, fn) {
+    try {
+      fn()
+      results.push({ name, ok: true })
+    } catch (error) {
+      results.push({ name, ok: false, error: String((error && error.message) || error) })
+    }
+  }
+
+  function attach(id, messageId, turn) {
+    const element = document.getElementById(id)
+    element.__reactFiber$harness = {
+      memoizedProps: {
+        sessionId: 'session-1',
+        node: {
+          data: { finalNode: { messageId } },
+          location: { turn: { turn } },
+        },
+      },
+      return: null,
+    }
+  }
+
+  function selectContents(node) {
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    return range
+  }
+
+  function selectOffsets(node, start, end) {
+    const range = document.createRange()
+    range.setStart(node, start)
+    range.setEnd(node, end)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    return range
+  }
+
+  let T = null
+  try {
+    if (!window.__captured) throw new Error('client.js did not call __ModuleLoader__.load')
+    const mod = window.__captured.factory(() => ({
+      createElement: () => null,
+      useState: (value) => [typeof value === 'function' ? value() : value, () => {}],
+      useEffect: () => {},
+      useRef: (value) => ({ current: value }),
+      memo: (component) => component,
+      Fragment: 'Fragment',
+    }))
+    T = mod.__test__
+    results.push({ name: 'factory returns test internals', ok: true })
+  } catch (error) {
+    results.push({ name: 'factory returns test internals', ok: false, error: String(error) })
+  }
+
+  if (T) {
+    attach('p1', '4f2a1c9d-1111', 4)
+    attach('pre1', '4f2a1c9d-1111', 4)
+    attach('p2', '4f2a1c9d-1111', 4)
+
+    check('fiber context reads messageId / turn / sessionId', () => {
+      const context = T.fiberContext(document.getElementById('p1'))
+      assert(context.messageId === '4f2a1c9d-1111', 'messageId: ' + context.messageId)
+      assert(context.turn === 4, 'turn: ' + context.turn)
+      assert(context.sessionId === 'session-1', 'sessionId: ' + context.sessionId)
+    })
+
+    check('topBlocks returns the three top-level blocks', () => {
+      const blocks = T.topBlocks(document.getElementById('row'))
+      assert(blocks.length === 3, 'got ' + blocks.length)
+      assert(blocks[0].id === 'p1' && blocks[1].id === 'pre1' && blocks[2].id === 'p2', 'order: ' + blocks.map((b) => b.id).join(','))
+    })
+
+    check('readSelection captures a paragraph anchor', () => {
+      selectContents(document.getElementById('p1'))
+      const read = T.readSelection()
+      assert(read && read.target, 'no selection read')
+      const target = read.target
+      assert(target.messageId === '4f2a1c9d-1111', 'messageId: ' + target.messageId)
+      assert(target.turn === 4, 'turn: ' + target.turn)
+      assert(target.anchor.kind === 'range', 'anchor kind: ' + target.anchor.kind)
+      assert(target.anchor.blockIndex === 0, 'blockIndex: ' + target.anchor.blockIndex)
+      assert(target.anchor.quote === '同时准备报告目录，并将它单独纳入备份：', 'quote: ' + target.anchor.quote)
+      assert(target.locator.indexOf('第 4 轮') >= 0, 'locator: ' + target.locator)
+      assert(read.rect && read.rect.width > 0, 'rect missing')
+    })
+
+    check('resolveRangeIn finds the same paragraph text', () => {
+      selectContents(document.getElementById('p1'))
+      const read = T.readSelection()
+      const range = T.resolveRangeIn(document.getElementById('row'), read.target.anchor)
+      assert(range, 'range not resolved')
+      assert(range.toString() === read.target.anchor.quote, 'resolved text: ' + range.toString())
+    })
+
+    check('duplicate text is disambiguated by prefix', () => {
+      const p2 = document.getElementById('p2')
+      selectOffsets(p2.firstChild, 6, 11)
+      const read = T.readSelection()
+      assert(read && read.target.anchor.quote === '重复的句子', 'quote: ' + (read && read.target.anchor.quote))
+      assert(read.target.anchor.prefix === '重复的句子。', 'prefix: ' + read.target.anchor.prefix)
+      const range = T.resolveRangeIn(document.getElementById('row'), read.target.anchor)
+      assert(range, 'range not resolved')
+      assert(range.startOffset === 6, 'start offset: ' + range.startOffset)
+    })
+
+    check('code selection records language and line range', () => {
+      selectContents(document.getElementById('pre1'))
+      const read = T.readSelection()
+      assert(read && read.target, 'no selection read')
+      const anchor = read.target.anchor
+      assert(anchor.lang === 'bash', 'lang: ' + anchor.lang)
+      assert(anchor.lineStart === 1, 'lineStart: ' + anchor.lineStart)
+      assert(anchor.lineEnd === 2, 'lineEnd: ' + anchor.lineEnd)
+      assert(read.target.locator.indexOf('代码块 bash') >= 0, 'locator: ' + read.target.locator)
+    })
+
+    check('selection inside a contenteditable block is ignored', () => {
+      selectContents(document.getElementById('ce'))
+      const read = T.readSelection()
+      assert(read === null, 'expected null, got a target')
+    })
+
+    check('collapsed selection is ignored', () => {
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      const range = document.createRange()
+      range.setStart(document.getElementById('p1').firstChild, 1)
+      range.collapse(true)
+      selection.addRange(range)
+      assert(T.readSelection() === null, 'expected null')
+    })
+  }
+
+  window.__RESULTS__ = results
+  const failures = results.filter((item) => !item.ok)
+  out.innerHTML = results.map((item) => (
+    (item.ok ? '<span class="pass">PASS</span> ' : '<span class="fail">FAIL</span> ') +
+    item.name + (item.error ? '\n     ' + item.error : '')
+  )).join('\n')
+  document.title = failures.length === 0 ? 'PASS' : 'FAIL'
+})().catch((error) => {
+  document.getElementById('out').textContent = 'harness crashed: ' + error
+  window.__RESULTS__ = [{ name: 'harness', ok: false, error: String(error) }]
+})
+</script>
+</body>
+</html>

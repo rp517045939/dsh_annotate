@@ -1,0 +1,8 @@
+# Bundle patch for dsh-annotate.
+#
+# The host half is intentionally empty (a UI-only plugin). It still needs a row
+# here so the profile tree knows about the plugin; the browser half is
+# discovered through `dsh.client` in package.json.
+- insert:
+    - id: annotate
+      name: "dsh-annotate"

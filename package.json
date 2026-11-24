@@ -1,0 +1,60 @@
+{
+  "name": "dsh-annotate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Select text in a DeepSeek Harness session, leave comments, and send them to the model as one batch.",
+  "license": "MIT",
+  "author": "rp517045939",
+  "type": "module",
+  "homepage": "https://github.com/rp517045939/dsh_annotate#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rp517045939/dsh_annotate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rp517045939/dsh_annotate/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "annotation",
+    "review",
+    "comments"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "serve": "node scripts/serve.mjs 4180"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}
